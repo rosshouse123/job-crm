@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Settings — Job CRM{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Settings</h1>
+</div>
+
+<!-- Resume Upload -->
+<div class="settings-card">
+  <h2>Resume Upload</h2>
+  {% if resume_exists %}
+  <p style="font-size:0.88rem;color:var(--green);margin-bottom:0.75rem;font-weight:600;">&#10003; Resume uploaded (uploads/resume.pdf)</p>
+  {% else %}
+  <p style="font-size:0.88rem;color:var(--text-muted);margin-bottom:0.75rem;">No resume uploaded yet. Upload a PDF resume to enable AI fit assessments.</p>
+  {% endif %}
+  <form method="POST" enctype="multipart/form-data">
+    <div class="settings-field">
+      <label for="resume_pdf">Upload PDF Resume</label>
+      <input type="file" id="resume_pdf" name="resume_pdf" accept=".pdf" required />
+    </div>
+    <button type="submit" class="btn btn-primary">Upload Resume</button>
+  </form>
+</div>
+
+<!-- AI Assessment Usage -->
+<div class="settings-card">
+  <h2>AI Assessment Usage</h2>
+  <p style="font-size:0.88rem;color:var(--text-muted);margin-bottom:0.75rem;">
+    Fit assessments are powered by Claude AI. Each assessment counts toward a lifetime cap.
+  </p>
+  <div class="usage-bar-wrap">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.25rem;">
+      <span style="font-size:0.88rem;font-weight:600;color:var(--text);">{{ assessment_count }} / {{ assessment_cap }} assessments used</span>
+      <span style="font-size:0.78rem;color:var(--text-dim);">{{ assessment_cap - assessment_count }} remaining</span>
+    </div>
+    <div class="usage-bar">
+      <div class="usage-bar-fill" style="width:{{ ([assessment_count / assessment_cap * 100, 100] | min) | round | int }}%;
+        {% if assessment_count / assessment_cap >= 0.9 %}background:var(--red);{% elif assessment_count / assessment_cap >= 0.7 %}background:var(--yellow);{% endif %}">
+      </div>
+    </div>
+  </div>
+  {% if assessment_count >= assessment_cap %}
+  <p style="font-size:0.85rem;color:var(--red);font-weight:600;margin-top:0.75rem;">Assessment cap reached. No more assessments can be run.</p>
+  {% endif %}
+</div>
+
+{% endblock %}

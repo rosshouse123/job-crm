@@ -1,0 +1,304 @@
+{% extends "base.html" %}
+{% block title %}{{ app['company'] }} — {{ app['role'] }} — Job CRM{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ app['company'] }}</h1>
+    <p class="page-subtitle">{{ app['role'] }}</p>
+  </div>
+  <div class="header-actions">
+    <a href="{{ url_for('edit_application', app_id=app['id']) }}" class="btn btn-secondary">Edit</a>
+    <form method="POST" action="{{ url_for('delete_application', app_id=app['id']) }}"
+          onsubmit="return confirm('Delete this application permanently?')" class="inline-form">
+      <button type="submit" class="btn btn-danger">Delete</button>
+    </form>
+    <a href="{{ url_for('index') }}" class="btn btn-ghost">&larr; Dashboard</a>
+  </div>
+</div>
+
+<!-- Application Info -->
+<div class="detail-grid">
+  <div class="detail-main">
+
+    <!-- Meta card -->
+    <div class="card">
+      <div class="meta-grid">
+        <div class="meta-item">
+          <span class="meta-label">Status</span>
+          <span class="status-badge status-{{ app['status'] | lower | replace(' ', '-') }}">{{ app['status'] }}</span>
+        </div>
+        <div class="meta-item">
+          <span class="meta-label">Date Applied</span>
+          <span class="meta-value">{{ app['date_applied'] or '—' }}</span>
+        </div>
+        <div class="meta-item">
+          <span class="meta-label">Salary Range</span>
+          <span class="meta-value">{{ app['salary_range'] or '—' }}</span>
+        </div>
+        <div class="meta-item">
+          <span class="meta-label">Resume Version</span>
+          <span class="meta-value">{{ app['resume_version'] or '—' }}</span>
+        </div>
+        {% if app['job_url'] %}
+        <div class="meta-item meta-item-full">
+          <span class="meta-label">Job Posting</span>
+          <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;">
+            <a href="{{ app['job_url'] }}" target="_blank" rel="noopener" class="meta-link">{{ app['job_url'] }}</a>
+            <form method="POST" action="{{ url_for('fetch_job_description', app_id=app['id']) }}" class="inline-form">
+              <button type="submit" class="btn btn-secondary" style="font-size:0.78rem;padding:0.25rem 0.65rem;">
+                &#8645; Fetch Job Description
+              </button>
+            </form>
+          </div>
+        </div>
+        {% endif %}
+        {% if app['notes_general'] %}
+        <div class="meta-item meta-item-full">
+          <span class="meta-label">General Notes</span>
+          <span class="meta-value pre-wrap">{{ app['notes_general'] }}</span>
+        </div>
+        {% endif %}
+        {% if app['job_description'] %}
+        <div class="meta-item meta-item-full">
+          <span class="meta-label">Job Description</span>
+          <span class="meta-value pre-wrap" style="font-size:0.85rem;color:var(--text-muted);max-height:160px;overflow-y:auto;display:block;">{{ app['job_description'] }}</span>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Fit Assessment Card -->
+    <div class="card" id="fit-assessment">
+      <div class="card-header">
+        <h2 class="card-title">AI Fit Assessment</h2>
+        <span class="usage-note">{{ assessment_count }} / {{ assessment_cap }} assessments used</span>
+      </div>
+
+      {% if app['fit_score'] %}
+        {% set score = app['fit_score'] | int %}
+        <div style="display:flex;align-items:center;gap:1rem;margin-bottom:0.75rem;">
+          {% if score >= 7 %}
+            <span class="fit-badge fit-badge-high" style="width:3rem;height:3rem;font-size:1.1rem;">{{ score }}</span>
+          {% elif score >= 4 %}
+            <span class="fit-badge fit-badge-mid" style="width:3rem;height:3rem;font-size:1.1rem;">{{ score }}</span>
+          {% else %}
+            <span class="fit-badge fit-badge-low" style="width:3rem;height:3rem;font-size:1.1rem;">{{ score }}</span>
+          {% endif %}
+          <div style="flex:1;">
+            <div style="font-size:0.88rem;font-weight:600;color:var(--text);">Score: {{ score }} / 10</div>
+            <div class="fit-score-bar">
+              <div class="fit-score-fill {% if score >= 7 %}high{% elif score >= 4 %}mid{% else %}low{% endif %}"
+                   style="width:{{ (score / 10 * 100) | round | int }}%;"></div>
+            </div>
+          </div>
+        </div>
+        {% if app['fit_summary'] %}
+          <div class="fit-summary-text">{{ app['fit_summary'] }}</div>
+        {% endif %}
+        <div style="margin-top:1rem;display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;">
+          {% set cap_reached = assessment_count >= assessment_cap %}
+          {% set no_jd = not app['job_description'] or not app['job_description'].strip() %}
+          {% set no_resume = not resume_exists %}
+          <form method="POST" action="{{ url_for('assess_fit', app_id=app['id']) }}" class="inline-form">
+            <button type="submit" class="btn btn-secondary"
+              {% if cap_reached or no_jd or no_resume %}
+                disabled title="{% if cap_reached %}Assessment cap reached{% elif no_resume %}Upload resume in Settings first{% else %}Add a job description to enable{% endif %}"
+                style="opacity:0.55;cursor:not-allowed;"
+              {% endif %}>
+              Re-assess Fit
+            </button>
+          </form>
+          {% if no_jd %}
+            <span style="font-size:0.78rem;color:var(--text-dim);">Add a job description to re-assess.</span>
+          {% elif no_resume %}
+            <span style="font-size:0.78rem;color:var(--text-dim);">Upload your resume in <a href="{{ url_for('settings') }}">Settings</a> first.</span>
+          {% endif %}
+        </div>
+      {% else %}
+        <p style="color:var(--text-muted);font-size:0.9rem;margin-bottom:1rem;">No assessment yet. Run the AI fit assessment to see how well your profile matches this job.</p>
+        <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;">
+          {% set cap_reached = assessment_count >= assessment_cap %}
+          {% set no_jd = not app['job_description'] or not app['job_description'].strip() %}
+          {% set no_resume = not resume_exists %}
+          <form method="POST" action="{{ url_for('assess_fit', app_id=app['id']) }}" class="inline-form">
+            <button type="submit" class="btn btn-primary"
+              {% if cap_reached or no_jd or no_resume %}
+                disabled title="{% if cap_reached %}Assessment cap reached{% elif no_resume %}Upload resume in Settings first{% else %}Add a job description to enable{% endif %}"
+                style="opacity:0.55;cursor:not-allowed;"
+              {% endif %}>
+              Assess Fit
+            </button>
+          </form>
+          {% if no_jd %}
+            <span style="font-size:0.78rem;color:var(--text-dim);">Add a job description to enable assessment.</span>
+          {% elif no_resume %}
+            <span style="font-size:0.78rem;color:var(--text-dim);">Upload your resume in <a href="{{ url_for('settings') }}">Settings</a> first.</span>
+          {% endif %}
+        </div>
+      {% endif %}
+      <p class="usage-note">{{ assessment_count }} of {{ assessment_cap }} lifetime assessments used.</p>
+    </div>
+
+    <!-- Notes Section -->
+    <div class="card" id="notes">
+      <div class="card-header">
+        <h2 class="card-title">Notes <span class="count-badge">{{ notes|length }}</span></h2>
+      </div>
+
+      <form method="POST" action="{{ url_for('add_note', app_id=app['id']) }}" class="inline-add-form">
+        <textarea name="content" rows="2" placeholder="Add a note&hellip;" required></textarea>
+        <button type="submit" class="btn btn-primary btn-sm-form">Add Note</button>
+      </form>
+
+      {% if notes %}
+      <div class="note-list">
+        {% for note in notes %}
+        <div class="note-item">
+          <div class="note-content">{{ note['content'] }}</div>
+          <div class="note-footer">
+            <span class="note-date">{{ note['created_at'] }}</span>
+            <form method="POST" action="{{ url_for('delete_note', note_id=note['id']) }}" class="inline-form">
+              <input type="hidden" name="app_id" value="{{ app['id'] }}" />
+              <button type="submit" class="btn-text-danger" onclick="return confirm('Delete this note?')">Delete</button>
+            </form>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="empty-text">No notes yet.</p>
+      {% endif %}
+    </div>
+
+    <!-- Resume Versions Section -->
+    <div class="card" id="resume">
+      <div class="card-header">
+        <h2 class="card-title">Resume Versions <span class="count-badge">{{ resume_versions|length }}</span></h2>
+      </div>
+
+      <form method="POST" action="{{ url_for('add_resume_version', app_id=app['id']) }}" class="inline-add-form form-grid-3">
+        <input type="text" name="version_label" placeholder="Version label (e.g. v2-tailored)" required />
+        <input type="text" name="file_path" placeholder="File path or URL (optional)" />
+        <input type="text" name="notes" placeholder="Notes (optional)" />
+        <button type="submit" class="btn btn-primary btn-sm-form">Add Version</button>
+      </form>
+
+      {% if resume_versions %}
+      <div class="resume-list">
+        {% for rv in resume_versions %}
+        <div class="resume-item">
+          <div class="resume-info">
+            <span class="resume-label">{{ rv['version_label'] }}</span>
+            {% if rv['file_path'] %}
+            <a href="{{ rv['file_path'] }}" target="_blank" rel="noopener" class="resume-path">{{ rv['file_path'] }}</a>
+            {% endif %}
+            {% if rv['notes'] %}<span class="resume-notes">{{ rv['notes'] }}</span>{% endif %}
+          </div>
+          <div class="resume-footer">
+            <span class="note-date">{{ rv['created_at'] }}</span>
+            <form method="POST" action="{{ url_for('delete_resume_version', version_id=rv['id']) }}" class="inline-form">
+              <input type="hidden" name="app_id" value="{{ app['id'] }}" />
+              <button type="submit" class="btn-text-danger" onclick="return confirm('Delete this version?')">Delete</button>
+            </form>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="empty-text">No resume versions tracked.</p>
+      {% endif %}
+    </div>
+
+  </div>
+
+  <!-- Sidebar -->
+  <div class="detail-sidebar">
+
+    <!-- Reminders -->
+    <div class="card" id="reminders">
+      <div class="card-header">
+        <h2 class="card-title">Reminders <span class="count-badge">{{ reminders|length }}</span></h2>
+      </div>
+
+      <form method="POST" action="{{ url_for('add_reminder', app_id=app['id']) }}" class="inline-add-form">
+        <input type="text" name="title" placeholder="Reminder title&hellip;" required />
+        <input type="date" name="due_date" />
+        <button type="submit" class="btn btn-primary btn-sm-form">Add Reminder</button>
+      </form>
+
+      {% if reminders %}
+      <ul class="reminder-list-detail">
+        {% for r in reminders %}
+        <li class="reminder-detail-item {% if r['done'] %}done{% endif %}">
+          <form method="POST" action="{{ url_for('toggle_reminder', reminder_id=r['id']) }}" class="inline-form toggle-form">
+            <input type="hidden" name="app_id" value="{{ app['id'] }}" />
+            <button type="submit" class="toggle-btn" title="Toggle done">
+              <span class="toggle-check">{% if r['done'] %}&#10003;{% else %}&nbsp;{% endif %}</span>
+            </button>
+          </form>
+          <div class="reminder-detail-info">
+            <span class="reminder-title-text">{{ r['title'] }}</span>
+            {% if r['due_date'] %}
+            <span class="reminder-due {% if not r['done'] and r['due_date'] < today %}overdue-text{% endif %}">
+              Due {{ r['due_date'] }}
+            </span>
+            {% endif %}
+          </div>
+          <form method="POST" action="{{ url_for('delete_reminder', reminder_id=r['id']) }}" class="inline-form">
+            <input type="hidden" name="app_id" value="{{ app['id'] }}" />
+            <button type="submit" class="btn-text-danger small" onclick="return confirm('Delete reminder?')">&times;</button>
+          </form>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="empty-text">No reminders set.</p>
+      {% endif %}
+    </div>
+
+    <!-- Contacts -->
+    <div class="card" id="contacts">
+      <div class="card-header">
+        <h2 class="card-title">Contacts <span class="count-badge">{{ contacts|length }}</span></h2>
+      </div>
+
+      <details class="add-details">
+        <summary class="add-summary">+ Add Contact</summary>
+        <form method="POST" action="{{ url_for('add_contact', app_id=app['id']) }}" class="inline-add-form contact-form">
+          <input type="text" name="name" placeholder="Name *" required />
+          <input type="text" name="title" placeholder="Job Title" />
+          <input type="email" name="email" placeholder="Email" />
+          <input type="text" name="phone" placeholder="Phone" />
+          <input type="url" name="linkedin" placeholder="LinkedIn URL" />
+          <button type="submit" class="btn btn-primary btn-sm-form">Add Contact</button>
+        </form>
+      </details>
+
+      {% if contacts %}
+      <div class="contact-list">
+        {% for c in contacts %}
+        <div class="contact-card">
+          <div class="contact-info">
+            <span class="contact-name">{{ c['name'] }}</span>
+            {% if c['title'] %}<span class="contact-title">{{ c['title'] }}</span>{% endif %}
+            {% if c['email'] %}<a href="mailto:{{ c['email'] }}" class="contact-detail">{{ c['email'] }}</a>{% endif %}
+            {% if c['phone'] %}<span class="contact-detail">{{ c['phone'] }}</span>{% endif %}
+            {% if c['linkedin'] %}<a href="{{ c['linkedin'] }}" target="_blank" rel="noopener" class="contact-detail">LinkedIn</a>{% endif %}
+          </div>
+          <form method="POST" action="{{ url_for('delete_contact', contact_id=c['id']) }}" class="inline-form">
+            <input type="hidden" name="app_id" value="{{ app['id'] }}" />
+            <button type="submit" class="btn-text-danger small" onclick="return confirm('Delete contact?')">&times;</button>
+          </form>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="empty-text">No contacts added.</p>
+      {% endif %}
+    </div>
+
+  </div><!-- /sidebar -->
+</div><!-- /detail-grid -->
+
+{% endblock %}

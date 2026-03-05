@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}{% if action == 'edit' %}Edit Application{% else %}New Application{% endif %} — Job CRM{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>{% if action == 'edit' %}Edit Application{% else %}New Application{% endif %}</h1>
+  {% if action == 'edit' %}
+  <a href="{{ url_for('application_detail', app_id=app_id) }}" class="btn btn-ghost">&larr; Back</a>
+  {% else %}
+  <a href="{{ url_for('index') }}" class="btn btn-ghost">&larr; Dashboard</a>
+  {% endif %}
+</div>
+
+<div class="form-card">
+  <form method="POST" action="{% if action == 'edit' %}{{ url_for('edit_application', app_id=app_id) }}{% else %}{{ url_for('new_application') }}{% endif %}">
+
+    <div class="form-grid">
+      <div class="form-group">
+        <label for="company">Company <span class="required">*</span></label>
+        <input type="text" id="company" name="company" value="{{ form.get('company', '') }}"
+               placeholder="e.g. Acme Corp" required autofocus />
+      </div>
+
+      <div class="form-group">
+        <label for="role">Role / Job Title <span class="required">*</span></label>
+        <input type="text" id="role" name="role" value="{{ form.get('role', '') }}"
+               placeholder="e.g. Software Engineer" required />
+      </div>
+
+      <div class="form-group">
+        <label for="status">Status</label>
+        <select id="status" name="status">
+          {% for s in statuses %}
+          <option value="{{ s }}" {% if form.get('status', 'Applied') == s %}selected{% endif %}>{{ s }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="date_applied">Date Applied</label>
+        <input type="date" id="date_applied" name="date_applied" value="{{ form.get('date_applied', '') }}" />
+      </div>
+
+      <div class="form-group form-group-full">
+        <label for="job_url">Job Posting URL</label>
+        <input type="url" id="job_url" name="job_url" value="{{ form.get('job_url', '') }}"
+               placeholder="https://..." />
+      </div>
+
+      <div class="form-group">
+        <label for="salary_range">Salary Range</label>
+        <input type="text" id="salary_range" name="salary_range" value="{{ form.get('salary_range', '') }}"
+               placeholder="e.g. $90k–$120k" />
+      </div>
+
+      <div class="form-group">
+        <label for="resume_version">Resume Version</label>
+        <input type="text" id="resume_version" name="resume_version" value="{{ form.get('resume_version', '') }}"
+               placeholder="e.g. v3-backend, tailored-2024" />
+      </div>
+
+      <div class="form-group form-group-full">
+        <label for="notes_general">General Notes</label>
+        <textarea id="notes_general" name="notes_general" rows="4"
+                  placeholder="Any notes about this application&hellip;">{{ form.get('notes_general', '') }}</textarea>
+      </div>
+
+      <div class="form-group form-group-full">
+        <label for="job_description">Job Description</label>
+        <textarea id="job_description" name="job_description" rows="8"
+                  placeholder="Paste the full job description here for AI fit assessment&hellip;">{{ form.get('job_description', '') }}</textarea>
+      </div>
+    </div>
+
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">
+        {% if action == 'edit' %}Save Changes{% else %}Add Application{% endif %}
+      </button>
+      {% if action == 'edit' %}
+      <a href="{{ url_for('application_detail', app_id=app_id) }}" class="btn btn-ghost">Cancel</a>
+      {% else %}
+      <a href="{{ url_for('index') }}" class="btn btn-ghost">Cancel</a>
+      {% endif %}
+    </div>
+  </form>
+</div>
+{% endblock %}

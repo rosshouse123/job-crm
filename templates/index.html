@@ -1,0 +1,379 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — Job CRM{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Dashboard</h1>
+  <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+    <form method="POST" action="{{ url_for('fetch_all_job_descriptions') }}"
+          onsubmit="return confirm('Fetch job descriptions for all applications without one? This may take a few minutes.')">
+      <button type="submit" class="btn btn-secondary">&#8645; Fetch All Job Descriptions</button>
+    </form>
+    <form method="POST" action="{{ url_for('bulk_assess') }}"
+          onsubmit="return confirm('Run AI fit assessment on all applications with a job description? This may take several minutes.')">
+      <button type="submit" class="btn btn-secondary">&#9733; Bulk Assess Fit</button>
+    </form>
+    <a href="{{ url_for('new_application') }}" class="btn btn-primary">+ New Application</a>
+  </div>
+</div>
+
+<!-- Stats Bar -->
+<div class="stats-bar">
+  <div class="stat-card stat-total">
+    <span class="stat-num">{{ stats.get('Total', 0) }}</span>
+    <span class="stat-label">Total</span>
+  </div>
+  {% for s in statuses %}
+  <a href="{{ url_for('index', status=s) }}" class="stat-card stat-{{ s | lower | replace(' ', '-') }} {% if status_filter == s %}active{% endif %}">
+    <span class="stat-num">{{ stats.get(s, 0) }}</span>
+    <span class="stat-label">{{ s }}</span>
+  </a>
+  {% endfor %}
+</div>
+
+<!-- Charts -->
+<div class="charts-grid">
+  <div class="chart-card">
+    <h3>Pipeline by Status</h3>
+    <canvas id="pipelineChart"></canvas>
+  </div>
+  <div class="chart-card">
+    <h3>Applications per Month (last 6 months)</h3>
+    <canvas id="timelineChart"></canvas>
+  </div>
+</div>
+
+<!-- Overdue Reminders Banner -->
+{% if overdue %}
+<div class="alert alert-warning">
+  <strong>&#9888; {{ overdue|length }} overdue reminder{{ 's' if overdue|length != 1 }}:</strong>
+  {% for r in overdue %}
+    <a href="{{ url_for('application_detail', app_id=r['application_id']) }}#reminders" class="alert-link">
+      {{ r['title'] }} ({{ r['company'] }} &mdash; {{ r['due_date'] }})
+    </a>{% if not loop.last %}, {% endif %}
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- Upcoming Reminders -->
+{% if upcoming %}
+<section class="section">
+  <h2 class="section-title">Upcoming Reminders</h2>
+  <div class="reminder-list">
+    {% for r in upcoming %}
+    <div class="reminder-item">
+      <span class="reminder-dot {% if r['due_date'] and r['due_date'] < today %}overdue{% endif %}"></span>
+      <div class="reminder-info">
+        <a href="{{ url_for('application_detail', app_id=r['application_id']) }}#reminders">{{ r['title'] }}</a>
+        <span class="reminder-meta">{{ r['company'] }} &mdash; {{ r['role'] }}{% if r['due_date'] %} &bull; Due {{ r['due_date'] }}{% endif %}</span>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+<!-- Search & Filter -->
+<section class="section">
+  <div class="list-header">
+    <h2 class="section-title" style="margin:0">Applications
+      {% if status_filter %}<span class="filter-badge">{{ status_filter }}</span>{% endif %}
+    </h2>
+    <form method="GET" class="search-form">
+      {% if status_filter %}<input type="hidden" name="status" value="{{ status_filter }}" />{% endif %}
+      <input type="text" name="search" value="{{ search }}" placeholder="Search company or role&hellip;" class="search-input" />
+      <button type="submit" class="btn btn-secondary">Search</button>
+      {% if search or status_filter %}
+      <a href="{{ url_for('index') }}" class="btn btn-ghost">Clear</a>
+      {% endif %}
+    </form>
+  </div>
+
+  {% if applications %}
+
+  <!-- Bulk toolbar -->
+  <div class="bulk-toolbar" id="bulkToolbar">
+    <span class="bulk-selected-count" id="bulkCount">0 selected</span>
+
+    <form method="POST" action="{{ url_for('bulk_delete') }}" id="bulkDeleteForm"
+          onsubmit="return populateBulkForm(this) && confirm('Delete selected applications?')">
+      <button type="submit" class="btn btn-danger" style="font-size:0.82rem;padding:0.35rem 0.8rem;">Delete Selected</button>
+    </form>
+
+    <form method="POST" action="{{ url_for('bulk_status') }}" id="bulkStatusForm"
+          onsubmit="return populateBulkForm(this)">
+      <select name="status" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);border-radius:var(--radius);padding:0.35rem 0.7rem;font-size:0.85rem;font-family:var(--font);">
+        {% for s in statuses %}
+        <option value="{{ s }}">{{ s }}</option>
+        {% endfor %}
+      </select>
+      <button type="submit" class="btn btn-secondary" style="font-size:0.82rem;padding:0.35rem 0.8rem;margin-left:0.35rem;">Apply</button>
+    </form>
+  </div>
+
+  <div class="table-wrapper">
+    <table class="app-table" id="appTable">
+      <thead>
+        <tr>
+          <th style="width:36px;"><input type="checkbox" id="selectAll" title="Select all" /></th>
+          <th>Company</th>
+          <th>Role</th>
+          <th>Status</th>
+          <th>Date Applied</th>
+          <th>Resume</th>
+          <th>Fit</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for a in applications %}
+        <tr>
+          <td><input type="checkbox" class="row-check" value="{{ a['id'] }}" /></td>
+          <td class="td-company">
+            <a href="{{ url_for('application_detail', app_id=a['id']) }}">{{ a['company'] }}</a>
+          </td>
+          <td>{{ a['role'] }}</td>
+          <td><span class="status-badge status-{{ a['status'] | lower | replace(' ', '-') }}">{{ a['status'] }}</span></td>
+          <td class="td-date">{{ a['date_applied'] or '—' }}</td>
+          <td class="td-resume">{{ a['resume_version'] or '—' }}</td>
+          <td>
+            {% if a['fit_score'] %}
+              {% set score = a['fit_score'] | int %}
+              <button class="fit-badge {% if score >= 7 %}fit-badge-high{% elif score >= 4 %}fit-badge-mid{% else %}fit-badge-low{% endif %}"
+                      onclick="toggleBreakdown('breakdown-{{ a['id'] }}')" title="Click to expand">{{ score }}</button>
+            {% else %}
+              <span class="fit-badge fit-badge-none">&mdash;</span>
+            {% endif %}
+          </td>
+          <td class="td-actions">
+            <a href="{{ url_for('application_detail', app_id=a['id']) }}" class="btn-sm">View</a>
+            <a href="{{ url_for('edit_application', app_id=a['id']) }}" class="btn-sm btn-sm-edit">Edit</a>
+            <form method="POST" action="{{ url_for('delete_application', app_id=a['id']) }}" class="inline-form"
+                  onsubmit="return confirm('Delete this application?')">
+              <button type="submit" class="btn-sm btn-sm-danger">Del</button>
+            </form>
+          </td>
+        </tr>
+        {% if a['fit_score'] and a['fit_summary'] %}
+        <tr id="breakdown-{{ a['id'] }}" class="breakdown-row" style="display:none;">
+          <td colspan="8">
+            <div class="breakdown-panel">
+              {% for section in a['fit_summary'].split('\n\n') %}
+                {% if section.strip() %}
+                  {% set lines = section.strip().split('\n') %}
+                  <div class="breakdown-section">
+                    <div class="breakdown-heading">{{ lines[0] }}</div>
+                    <ul class="breakdown-list">
+                      {% for line in lines[1:] %}
+                        {% if line.strip().startswith('- ') %}
+                          <li>{{ line.strip()[2:] }}</li>
+                        {% endif %}
+                      {% endfor %}
+                    </ul>
+                  </div>
+                {% endif %}
+              {% endfor %}
+            </div>
+          </td>
+        </tr>
+        {% endif %}
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <p>No applications found.</p>
+    <a href="{{ url_for('new_application') }}" class="btn btn-primary">Add Your First Application</a>
+  </div>
+  {% endif %}
+</section>
+
+<!-- Chart.js CDN -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+<script>
+// ---- Pipeline Donut Chart ----
+(function() {
+  var stats = {{ stats | tojson }};
+  var statusOrder = ["Wishlist", "Applied", "Phone Screen", "Interview", "Offer", "Rejected", "Withdrawn"];
+  var colorMap = {
+    "Wishlist":     "#d97706",
+    "Applied":      "#4f6ef7",
+    "Phone Screen": "#0891b2",
+    "Interview":    "#7c3aed",
+    "Offer":        "#16a34a",
+    "Rejected":     "#dc2626",
+    "Withdrawn":    "#9aa0bc"
+  };
+  var labels = [], data = [], colors = [];
+  statusOrder.forEach(function(s) {
+    var cnt = stats[s] || 0;
+    if (cnt > 0) {
+      labels.push(s);
+      data.push(cnt);
+      colors.push(colorMap[s] || "#9aa0bc");
+    }
+  });
+  if (labels.length === 0) {
+    labels = ["No data"]; data = [1]; colors = ["#dde1ee"];
+  }
+  var ctx = document.getElementById("pipelineChart");
+  if (ctx) {
+    new Chart(ctx, {
+      type: "doughnut",
+      data: { labels: labels, datasets: [{ data: data, backgroundColor: colors, borderWidth: 2, borderColor: "#fff" }] },
+      options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        plugins: {
+          legend: { position: "right", labels: { font: { size: 12 }, color: "#5a6080", boxWidth: 14, padding: 10 } }
+        }
+      }
+    });
+  }
+})();
+
+// ---- Timeline Bar Chart ----
+(function() {
+  var monthly = {{ monthly_counts | tojson }};
+  var labels = monthly.map(function(m) { return m.month; });
+  var data   = monthly.map(function(m) { return m.count; });
+  if (labels.length === 0) { labels = []; data = []; }
+  var ctx = document.getElementById("timelineChart");
+  if (ctx) {
+    new Chart(ctx, {
+      type: "bar",
+      data: {
+        labels: labels,
+        datasets: [{
+          label: "Applications",
+          data: data,
+          backgroundColor: "rgba(79,110,247,0.18)",
+          borderColor: "#4f6ef7",
+          borderWidth: 2,
+          borderRadius: 5
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        plugins: { legend: { display: false } },
+        scales: {
+          y: {
+            beginAtZero: true,
+            ticks: { precision: 0, color: "#5a6080", font: { size: 11 } },
+            grid: { color: "#dde1ee" }
+          },
+          x: {
+            ticks: { color: "#5a6080", font: { size: 11 } },
+            grid: { display: false }
+          }
+        }
+      }
+    });
+  }
+})();
+
+// ---- Bulk Selection ----
+var selectAll  = document.getElementById("selectAll");
+var bulkToolbar = document.getElementById("bulkToolbar");
+var bulkCount   = document.getElementById("bulkCount");
+
+function getChecked() {
+  return Array.from(document.querySelectorAll(".row-check:checked"));
+}
+
+function updateBulkToolbar() {
+  var checked = getChecked();
+  if (checked.length > 0) {
+    bulkToolbar.classList.add("visible");
+    bulkCount.textContent = checked.length + " selected";
+  } else {
+    bulkToolbar.classList.remove("visible");
+  }
+  if (selectAll) {
+    var all = document.querySelectorAll(".row-check");
+    selectAll.checked = all.length > 0 && checked.length === all.length;
+    selectAll.indeterminate = checked.length > 0 && checked.length < all.length;
+  }
+}
+
+if (selectAll) {
+  selectAll.addEventListener("change", function() {
+    document.querySelectorAll(".row-check").forEach(function(cb) {
+      cb.checked = selectAll.checked;
+    });
+    updateBulkToolbar();
+  });
+}
+
+document.querySelectorAll(".row-check").forEach(function(cb) {
+  cb.addEventListener("change", updateBulkToolbar);
+});
+
+function populateBulkForm(form) {
+  var checked = getChecked();
+  if (checked.length === 0) { alert("No applications selected."); return false; }
+  // Remove previously injected hidden inputs
+  form.querySelectorAll("input[name='ids']").forEach(function(el) { el.remove(); });
+  checked.forEach(function(cb) {
+    var inp = document.createElement("input");
+    inp.type = "hidden";
+    inp.name = "ids";
+    inp.value = cb.value;
+    form.appendChild(inp);
+  });
+  return true;
+}
+
+function toggleBreakdown(id) {
+  var row = document.getElementById(id);
+  if (row) row.style.display = row.style.display === 'none' ? 'table-row' : 'none';
+}
+</script>
+
+<style>
+.breakdown-row td { padding: 0; }
+.breakdown-panel {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  padding: 0.85rem 1.25rem;
+  background: var(--bg-input);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.breakdown-section { flex: 1; min-width: 160px; }
+.breakdown-heading {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin-bottom: 0.35rem;
+}
+.breakdown-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+.breakdown-list li {
+  font-size: 0.82rem;
+  color: var(--text);
+  padding-left: 0.75rem;
+  position: relative;
+}
+.breakdown-list li::before {
+  content: "·";
+  position: absolute;
+  left: 0;
+  color: var(--accent);
+  font-weight: 700;
+}
+button.fit-badge { cursor: pointer; border: none; font-family: var(--font); }
+</style>
+{% endblock %}

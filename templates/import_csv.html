@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Import CSV — Job CRM{% endblock %}
+
+{% block content %}
+<div class="form-page">
+  <h1 class="page-title">Import from Google Sheets CSV</h1>
+
+  <div class="card" style="max-width: 560px;">
+    <h2 style="margin-top:0; font-size:1.1rem; color:var(--text-muted);">How to export your sheet</h2>
+    <ol style="color:var(--text-muted); line-height:1.8; padding-left:1.2rem;">
+      <li>Open your Google Sheet</li>
+      <li>Click <strong>File → Download → Comma-separated values (.csv)</strong></li>
+      <li>Upload the file below</li>
+    </ol>
+    <p style="color:var(--text-muted); font-size:0.9rem;">
+      Expected columns: <code>Company</code>, <code>Title</code>, <code>Date</code>, <code>Salary</code>, <code>Fit</code>, <code>Outcome</code>
+    </p>
+  </div>
+
+  <form method="POST" enctype="multipart/form-data" class="app-form" style="max-width:560px; margin-top:1.5rem;">
+    <div class="form-group">
+      <label for="csv_file">CSV File</label>
+      <input type="file" id="csv_file" name="csv_file" accept=".csv" required
+             style="background:var(--bg-card); color:var(--text); border:1px solid var(--border); border-radius:6px; padding:0.5rem; width:100%;">
+    </div>
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">Import</button>
+      <a href="{{ url_for('index') }}" class="btn btn-ghost">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}
