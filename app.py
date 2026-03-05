@@ -11,7 +11,7 @@ import io
 import os
 
 app = Flask(__name__)
-app.secret_key = "job-crm-secret-key-change-in-production"
+app.secret_key = os.environ.get("SECRET_KEY") or os.urandom(24)
 
 UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "uploads")
 RESUME_PATH = os.path.join(UPLOAD_DIR, "resume.pdf")
